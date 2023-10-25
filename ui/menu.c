@@ -694,12 +694,12 @@ void UI_DisplayMenu(void)
 		#endif
 
 		case MENU_AUTO_BACKLITE:
-			strcpy(str, "BACKLITE\n");
+			strcpy(str, "BACKLIGHT\n");
 			strcat(str, g_sub_menu_backlight[g_sub_menu_selection]);
 			break;
 
 		case MENU_AUTO_BACKLITE_ON_TX_RX:
-			strcpy(str, "BACKLITE\n");
+			strcpy(str, "BACKLIGHT\n");
 			strcat(str, g_sub_menu_rx_tx[g_sub_menu_selection]);
 			break;
 
@@ -1244,8 +1244,10 @@ void UI_DisplayMenu(void)
 		}
 	}
 
-	if ((g_menu_cursor == MENU_RX_CTCSS || g_menu_cursor == MENU_RX_CDCSS) && g_css_scan_mode != CSS_SCAN_MODE_OFF)
-		UI_PrintString("SCAN", sub_menu_x1, sub_menu_x2, 4, 8);
+	if ((g_menu_cursor == MENU_RX_CTCSS || g_menu_cursor == MENU_RX_CDCSS) && g_css_scan_mode == CSS_SCAN_MODE_SCANNING)
+		UI_PrintString("SCAN", sub_menu_x1, sub_menu_x2, 5, 8);
+	if ((g_menu_cursor == MENU_RX_CTCSS || g_menu_cursor == MENU_RX_CDCSS) && g_css_scan_mode == CSS_SCAN_MODE_FOUND)
+		UI_PrintString("FOUND", sub_menu_x1, sub_menu_x2, 5, 8);
 
 	if (g_menu_cursor == MENU_UP_CODE)
 		if (strlen(g_eeprom.dtmf_key_up_code) > 8)

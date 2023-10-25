@@ -62,7 +62,8 @@ const uint16_t        dual_watch_delay_after_tx_10ms   =   7000 / 10;   // 7 sec
 const uint16_t        dual_watch_delay_noaa_10ms       =     70 / 10;   // 70ms
 const uint16_t        dual_watch_delay_toggle_10ms     =    100 / 10;   // 100ms between VFO toggles
 
-const uint16_t        scan_pause_code_10ms             =   1000 / 10;   // 1 sec
+//const uint16_t        scan_pause_code_10ms             =   1000 / 10;   // 1 sec
+const uint16_t        scan_pause_code_10ms             =    200 / 10;   // 200ms
 const uint16_t        scan_pause_css_10ms              =    500 / 10;   // 500ms
 const uint16_t        scan_pause_ctcss_10ms            =    200 / 10;   // 200ms
 const uint16_t        scan_pause_cdcss_10ms            =    300 / 10;   // 300ms

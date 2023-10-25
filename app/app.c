@@ -1222,7 +1222,7 @@ void APP_process(void)
 		if (g_voice_write_index == 0)
 	#endif
 	{
-		if (g_css_scan_mode == CSS_SCAN_MODE_SCANNING && g_scan_pause_10ms == 0)
+		if (g_css_scan_mode == CSS_SCAN_MODE_SCANNING && g_scan_pause_10ms == 0 && g_current_function == FUNCTION_NEW_RECEIVE)
 			MENU_SelectNextCode();
 	}
 
