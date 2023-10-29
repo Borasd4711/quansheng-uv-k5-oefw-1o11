@@ -64,6 +64,14 @@
 #include "ui/status.h"
 #include "ui/ui.h"
 
+#ifdef ENABLE_FSK_MODEM // TODO: once the FSK handling is ok, I will move the functions in driver/bk4819.c
+#include "external/printf/printf.h"
+__inline uint16_t scale_freq(const uint16_t freq)
+{
+	return (((uint32_t)freq * 1353245u) + (1u << 16)) >> 17;   // with rounding
+}
+#endif
+
 // original QS front end register settings
 const uint8_t orig_lna_short = 3;   //   0dB
 const uint8_t orig_lna       = 2;   // -14dB
@@ -2072,6 +2080,277 @@ void APP_cancel_user_input_modes(void)
 void APP_time_slice_500ms(void)
 {
 	bool exit_menu = false;
+
+	#ifdef ENABLE_FSK_MODEM
+		#define FSK_PACKET_PAYLOAD_LEN 64 // 1024 // bytes
+		#define FSK_MODULATION 		   FSK_MODULATION_TYPE_MSK1200_2400
+		#define FSK_SPEED_BPS          FSK_BPS_2400
+		#define FSK_TONE2_GAIN         120 // 0-127
+		#define FSK_PREAMBLE_BYTES     4
+		#define FSK_SCRAMBLE_EN        0 // it will be a bool var in function
+		#define FSK_CRC_EN             0 // it will be a bool var in function
+
+		#define SRAM_MEMORY_TO_READ 1024
+		#define MMIO16(addr) (*(volatile uint16_t *)(addr))
+
+		static uint8_t fsk_loop = 0;
+		uint8_t fsk_type = 0;
+
+
+		if(g_setting_fsk_modem)
+		{
+			if (g_fsk_modem_countdown_500ms > 0)
+			{
+				g_fsk_modem_countdown_500ms--;
+			}
+			else
+			{
+				// let's try to send some faked FSK data (gFskFakedDataOut[36]) every N seconds (5 in this case)
+				g_fsk_modem_countdown_500ms = 10; // 20 times every 0.5 secs -> 10 secs
+/*
+				uint16_t fskArrayU16[256] = {
+					0x6557, 0x7220 , 0x6765 , 0x6572 , 0x2074 , 0x6f74 , 0x6920 , 0x666e,
+					0x726f, 0x206d , 0x6f79 , 0x2075 , 0x6874 , 0x7461 , 0x6120 , 0x6c6c,
+					0x6f20, 0x6472 , 0x7265 , 0x2073 , 0x6e69 , 0x7420 , 0x6568 , 0x4520,
+					0x2055, 0x6177 , 0x6572 , 0x6f68 , 0x7375 , 0x2065 , 0x6977 , 0x6c6c,
+					0x6220, 0x2065 , 0x6564 , 0x616c , 0x6579 , 0x2064 , 0x6e69 , 0x7320,
+					0x6968, 0x7070 , 0x6e69 , 0x2067 , 0x7564 , 0x2065 , 0x6f74 , 0x6f20,
+					0x676e, 0x696f , 0x676e , 0x7720 , 0x7261 , 0x6865 , 0x756f , 0x6573,
+					0x7520, 0x6770 , 0x6172 , 0x6564 , 0x2e73 , 0x5720 , 0x2065 , 0x7061,
+
+					0x6557, 0x7220 , 0x6765 , 0x6572 , 0x2074 , 0x6f74 , 0x6920 , 0x666e,
+					0x726f, 0x206d , 0x6f79 , 0x2075 , 0x6874 , 0x7461 , 0x6120 , 0x6c6c,
+					0x6f20, 0x6472 , 0x7265 , 0x2073 , 0x6e69 , 0x7420 , 0x6568 , 0x4520,
+					0x2055, 0x6177 , 0x6572 , 0x6f68 , 0x7375 , 0x2065 , 0x6977 , 0x6c6c,
+					0x6220, 0x2065 , 0x6564 , 0x616c , 0x6579 , 0x2064 , 0x6e69 , 0x7320,
+					0x6968, 0x7070 , 0x6e69 , 0x2067 , 0x7564 , 0x2065 , 0x6f74 , 0x6f20,
+					0x676e, 0x696f , 0x676e , 0x7720 , 0x7261 , 0x6865 , 0x756f , 0x6573,
+					0x7520, 0x6770 , 0x6172 , 0x6564 , 0x2e73 , 0x5720 , 0x2065 , 0x7061,
+
+					0x6557, 0x7220 , 0x6765 , 0x6572 , 0x2074 , 0x6f74 , 0x6920 , 0x666e,
+					0x726f, 0x206d , 0x6f79 , 0x2075 , 0x6874 , 0x7461 , 0x6120 , 0x6c6c,
+					0x6f20, 0x6472 , 0x7265 , 0x2073 , 0x6e69 , 0x7420 , 0x6568 , 0x4520,
+					0x2055, 0x6177 , 0x6572 , 0x6f68 , 0x7375 , 0x2065 , 0x6977 , 0x6c6c,
+					0x6220, 0x2065 , 0x6564 , 0x616c , 0x6579 , 0x2064 , 0x6e69 , 0x7320,
+					0x6968, 0x7070 , 0x6e69 , 0x2067 , 0x7564 , 0x2065 , 0x6f74 , 0x6f20,
+					0x676e, 0x696f , 0x676e , 0x7720 , 0x7261 , 0x6865 , 0x756f , 0x6573,
+					0x7520, 0x6770 , 0x6172 , 0x6564 , 0x2e73 , 0x5720 , 0x2065 , 0x7061,
+
+					0x6557, 0x7220 , 0x6765 , 0x6572 , 0x2074 , 0x6f74 , 0x6920 , 0x666e,
+					0x726f, 0x206d , 0x6f79 , 0x2075 , 0x6874 , 0x7461 , 0x6120 , 0x6c6c,
+					0x6f20, 0x6472 , 0x7265 , 0x2073 , 0x6e69 , 0x7420 , 0x6568 , 0x4520,
+					0x2055, 0x6177 , 0x6572 , 0x6f68 , 0x7375 , 0x2065 , 0x6977 , 0x6c6c,
+					0x6220, 0x2065 , 0x6564 , 0x616c , 0x6579 , 0x2064 , 0x6e69 , 0x7320,
+					0x6968, 0x7070 , 0x6e69 , 0x2067 , 0x7564 , 0x2065 , 0x6f74 , 0x6f20,
+					0x676e, 0x696f , 0x676e , 0x7720 , 0x7261 , 0x6865 , 0x756f , 0x6573,
+					0x7520, 0x6770 , 0x6172 , 0x6564 , 0x2e73 , 0x5720 , 0x2065 , 0x7061
+					};
+*/
+				RADIO_enableTX(true);
+				fsk_type = fsk_loop % 8;
+				printf("fsk_type %d\r\n", fsk_type);
+
+				//BK4819_FskDoAllForTx(fsk_type);
+				//BK4819_FskDoAllForTx(1);
+
+				BK4819_EnableTXLink();
+				BK4819_SetAF(BK4819_AF_MUTE);
+				SYSTEM_DelayMs(10);
+
+				BK4819_FskEnterMode(
+					FSK_TX,
+					FSK_MODULATION_TYPE_MSK1200_1800, //FSK_MODULATION_TYPE_MSK1200_2400,
+					1200,       // 0 (1200) or 1 (2400) bps
+					120, //FSK_TONE2_GAIN,   // 0-127
+					FSK_NO_SYNC_BYTES_4, // 0 (2 bytes) or 1 (4 bytes)
+					4, 	//FSK_PREAMBLE_BYTES, // 1-16 bytes
+					false, 	//FSK_SCRAMBLE_EN,
+					false 	//FSK_CRC_EN
+					);
+				
+				//BK4819_FskTransmitPacket(fskArrayU16, 256*2);
+				#define MEMORY_ADDRESS 0x00002000
+				#define MEMORY_PACKET 1024
+				{
+					uint8_t i;
+					for(i=0; i < 20; i++)
+					{
+						BK4819_FskTransmitPacket( (uint16_t *)(MEMORY_ADDRESS + MEMORY_PACKET * i), MEMORY_PACKET*2);
+					}
+				}
+				
+				fsk_loop++;
+				// disable the TX
+				RADIO_disableTX(true);
+
+/**************************************
+				#if 0 // TX FSK
+				BK4819_EnableTXLink();
+
+				BK4819_SetAF(BK4819_AF_MUTE);
+				SYSTEM_DelayMs(10);
+
+				BK4819_FskEnterMode(
+					FSK_PACKET_PAYLOAD_LEN, // 16 to 256 bytes
+					FSK_TX,
+					FSK_MODULATION,
+					FSK_SPEED_BPS,       // 0 (1200) or 1 (2400) bps
+					FSK_TONE2_GAIN,   // 0-127
+					FSK_NO_SYNC_BYTES_4, // 0 (2 bytes) or 1 (4 bytes)
+					FSK_PREAMBLE_BYTES, // 1-16 bytes
+					FSK_SCRAMBLE_EN,
+					FSK_CRC_EN
+					);
+
+				BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, true); // turn on the red led on the top of handheld to show that TX is ongoing
+
+
+
+				//BK4819_FskTxBlocking(fskArrayU16, 128);
+				{	// load the entire packet data into the TX FIFO buffer
+					unsigned int i;
+					const uint16_t *p = (const uint16_t *)fskArrayU16;
+					for (i = 0; i < 64; i++)
+						BK4819_WriteRegister(BK4819_REG_5F, p[i]);  // load 16-bits at a time
+				}
+
+				// enable tx interrupt
+				BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED);
+
+				// enable TX
+				uint16_t fsk_reg59 = BK4819_ReadRegister(BK4819_REG_59);
+				BK4819_WriteRegister(BK4819_REG_59, (1u << 11) | fsk_reg59);
+
+				unsigned int timeout = 350 ;      
+
+				while (timeout-- > 0)
+				{
+					SYSTEM_DelayMs(5);
+					if (BK4819_ReadRegister(BK4819_REG_0C) & (1u << 0))
+					{	// we have interrupt flags
+						BK4819_WriteRegister(BK4819_REG_02, 0);
+						if (BK4819_ReadRegister(BK4819_REG_02) & BK4819_REG_02_FSK_TX_FINISHED)
+							timeout = 0;       // TX is complete
+					}
+				}
+
+				//GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+				//GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+
+				// disable TX
+				BK4819_WriteRegister(BK4819_REG_59, fsk_reg59);
+
+				// Stop FSK TX, reset Tone2, disable FSK
+				BK4819_FskExitMode();
+
+				#endif
+
+
+
+				#if 1
+				BK4819_EnableTXLink();
+
+				BK4819_SetAF(BK4819_AF_MUTE);
+				SYSTEM_DelayMs(10);
+
+				BK4819_FskEnterMode(
+					FSK_PACKET_PAYLOAD_LEN, // 16 to 256 bytes
+					FSK_TX,
+					FSK_MODULATION,
+					FSK_SPEED_BPS,       // 0 (1200) or 1 (2400) bps
+					FSK_TONE2_GAIN,   // 0-127
+					FSK_NO_SYNC_BYTES_4, // 0 (2 bytes) or 1 (4 bytes)
+					FSK_PREAMBLE_BYTES, // 1-16 bytes
+					FSK_SCRAMBLE_EN,
+					FSK_CRC_EN
+					);
+
+				BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, true); // turn on the red led on the top of handheld to show that TX is ongoing
+
+				// enable interrupts
+				BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_MASK_FSK_TX_FINISHED | BK4819_REG_3F_MASK_FSK_FIFO_ALMOST_EMPTY );
+				// trigger the TX
+				BK4819_WriteRegister(BK4819_REG_59, (BK4819_ReadRegister(BK4819_REG_59) | BK4819_REG_59_MASK_FSK_ENABLE_TX)); 
+
+				GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+
+				for (uint16_t j = 0; j < FSK_PACKET_PAYLOAD_LEN; j++) 
+				{
+					BK4819_WriteRegister(BK4819_REG_5F, fskArrayU16[j]);
+
+					if(BK4819_ReadRegister(BK4819_REG_0C) & 1u)
+					{
+						//BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+						uint16_t interrupt_status_bits = BK4819_ReadRegister(BK4819_REG_02);
+						printf("J %d 0x%x 0x%x\r\n", j, 0xA100 + j, interrupt_status_bits);
+						BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+					}
+				} 
+				// now we need to test if the fifo buffer gets filled		
+
+				SYSTEM_DelayMs(1);
+				GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+
+				// here we need to loop over the interrupts to wait for the TX done
+
+				uint16_t Timeout = 1000; // 200 * 5ms = 1s
+				uint16_t t = 0;
+				//while (Timeout-- && (BK4819_ReadRegister(BK4819_REG_02) & BK4819_REG_02_MASK_FSK_TX_FINISHED) == 0)
+				while (Timeout--)
+				{				
+					if(BK4819_ReadRegister(BK4819_REG_0C) & 1u)
+					{
+						BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+						uint16_t interrupt_status_bits = BK4819_ReadRegister(BK4819_REG_02);
+						printf("T %d 0x%x\r\n", t, interrupt_status_bits);
+						if((interrupt_status_bits & BK4819_REG_02_MASK_FSK_TX_FINISHED))
+						{
+							printf("exit while loop, end TX\r\n");
+							break;
+						}
+					}
+				
+					t++;
+					SYSTEM_DelayMs(5);
+				}
+
+				// clear again TX fifo after transmission
+				BK4819_WriteRegister(BK4819_REG_59, (BK4819_ReadRegister(BK4819_REG_59) & ~BK4819_REG_59_MASK_FSK_ENABLE_TX) | BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO); 
+			
+
+				// Stop FSK TX, reset Tone2, disable FSK
+				//BK4819_WriteRegister(BK4819_REG_59, 0x0068);
+				BK4819_WriteRegister(BK4819_REG_59, 0);
+				BK4819_WriteRegister(BK4819_REG_70, 0x0000); // switch off tone2
+				BK4819_WriteRegister(BK4819_REG_58, 0x0000); // reset FSK configuration
+				#endif
+
+				BK4819_SetupPowerAmplifier(0, 0);
+
+				BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, false);
+**************************************/ 
+				#if 0 // RX FSK
+				BK4819_SetupAircopy(); // prepares BK chip for receiving FSK
+				BK4819_ResetFSK();
+
+				uint8_t FskRxIndex;
+				while(1)
+				{
+					uint16_t FSK_interrupt_status_bits;
+					BK4819_WriteRegister(BK4819_REG_02, 0); // reset interrupt
+					FSK_interrupt_status_bits = BK4819_ReadRegister(BK4819_REG_02); // fetch the interrupt status bits
+					if (FSK_interrupt_status_bits & BK4819_REG_02_FSK_FIFO_ALMOST_FULL)
+					{
+						uint8_t i;
+						for (i = 0; i < 4; i++)
+							gFskFakedDataIn[FskRxIndex++] = BK4819_ReadRegister(BK4819_REG_5F);
+					}
+				}
+				BK4819_PrepareFSKReceive(); // maybe the name is wrong... it seems to be used to close the FSK transfer
+				#endif
+			}
+		}
+	#endif
 
 	// Skipped authentic device check
 

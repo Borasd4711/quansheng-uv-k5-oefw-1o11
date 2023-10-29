@@ -347,6 +347,11 @@ extern volatile bool         g_flag_tail_tone_elimination_complete;
 extern int16_t               g_current_rssi[2];   // now one per VFO
 extern volatile uint16_t     g_boot_counter_10ms;
 
+#ifdef ENABLE_FSK_MODEM // Francesco
+	extern bool              g_setting_fsk_modem;
+	extern uint16_t          g_fsk_modem_countdown_500ms;
+#endif
+
 unsigned int get_TX_VFO(void);
 unsigned int get_RX_VFO(void);
 void         NUMBER_Get(char *pDigits, uint32_t *pInteger);

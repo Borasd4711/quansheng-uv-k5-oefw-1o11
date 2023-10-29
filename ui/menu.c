@@ -137,7 +137,9 @@ const t_menu_item g_menu_list[] =
 #endif
 	{"VER",    VOICE_ID_INVALID,                       MENU_VERSION               },
 	{"RESET",  VOICE_ID_INITIALISATION,                MENU_RESET                 }, // might be better to move this to the hidden menu items ?
-
+#ifdef ENABLE_FSK_MODEM
+	{"MODEM",  VOICE_ID_INVALID,                       MENU_FSK_MODEM  			  },
+#endif
 	// ************************************
 	// ************************************
 	// ************************************
@@ -1139,6 +1141,12 @@ void UI_DisplayMenu(void)
 				sprintf(str, "%u.%02uV\n(%#4d)\n%#4d", vol / 100, vol % 100, g_battery_calibration[3], g_sub_menu_selection);
 			break;
 		}
+
+#ifdef ENABLE_FSK_MODEM // Francesco
+			case MENU_FSK_MODEM:
+				strcpy(str, (g_sub_menu_selection == 0) ? "OFF" : "FSK");
+				break;
+#endif // ENABLE_FSK_MODEM
 	}
 
 	#pragma GCC diagnostic pop

@@ -912,6 +912,18 @@ void RADIO_enableTX(const bool fsk_tx)
 	}
 }
 
+void RADIO_disableTX(const bool fsk_tx)
+{
+	BK4819_SetupPowerAmplifier(0, 0);                            //
+	BK4819_set_GPIO_pin(BK4819_GPIO1_PIN29_PA_ENABLE, false);    // PA off
+	BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, false);           // LED off
+
+	if (fsk_tx)
+	{
+		BK4819_reset_fsk();
+	}
+}
+
 void RADIO_Setg_vfo_state(vfo_state_t State)
 {
 	if (State == VFO_STATE_NORMAL)

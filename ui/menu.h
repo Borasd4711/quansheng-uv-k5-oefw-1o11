@@ -130,6 +130,9 @@ enum
 #endif
 	MENU_VERSION,
 	MENU_RESET,
+#ifdef ENABLE_FSK_MODEM // Francesco
+	MENU_FSK_MODEM,
+#endif
 
 	// ************************************
 	// ************************************

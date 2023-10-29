@@ -268,6 +268,11 @@ volatile uint16_t     g_boot_counter_10ms = 4000 / 10;   // 4 seconds
 
 int16_t               g_current_rssi[2] = {0, 0};  // now one per VFO
 
+#ifdef ENABLE_FSK_MODEM
+	bool          g_setting_fsk_modem;
+	uint16_t      g_fsk_modem_countdown_500ms;
+#endif
+
 unsigned int get_RX_VFO(void)
 {
 	unsigned int rx_vfo = g_eeprom.tx_vfo;

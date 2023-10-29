@@ -344,6 +344,10 @@ void SETTINGS_save(void)
 
 	memset(State, 0xFF, sizeof(State));
 	State[0] = g_eeprom.scan_hold_time_500ms;
+
+	#ifdef ENABLE_FSK_MODEM
+		if (!g_setting_fsk_modem)         State[7] &= ~(1u << 6);
+	#endif
 	EEPROM_WriteBuffer8(0x0F48, State);
 }
 

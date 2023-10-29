@@ -366,6 +366,13 @@ int MENU_GetLimits(uint8_t Cursor, int32_t *pMin, int32_t *pMax)
 			*pMax = 2200;  // 2300
 			break;
 
+		#ifdef ENABLE_FSK_MODEM
+			case MENU_FSK_MODEM:
+				*pMin = 0;
+				*pMax = 1;
+				break;
+		#endif
+
 		default:
 			return -1;
 	}
@@ -877,6 +884,12 @@ void MENU_AcceptSetting(void)
 
 			break;
 		}
+
+		#ifdef ENABLE_FSK_MODEM // Francesco
+			case MENU_FSK_MODEM:
+				g_setting_fsk_modem = g_sub_menu_selection;
+				break;
+		#endif
 	}
 
 	g_request_save_settings = true;
@@ -1312,6 +1325,12 @@ void MENU_ShowCurrentSetting(void)
 		case MENU_BAT_CAL:
 			g_sub_menu_selection = g_battery_calibration[3];
 			break;
+
+		#ifdef ENABLE_FSK_MODEM // Francesco
+			case MENU_FSK_MODEM:
+				g_sub_menu_selection = g_setting_fsk_modem;
+				break;
+		#endif	
 
 		default:
 			return;

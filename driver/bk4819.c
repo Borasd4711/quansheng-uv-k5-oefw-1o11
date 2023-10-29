@@ -26,6 +26,10 @@
 #ifdef ENABLE_MDC1200
 	#include "mdc1200.h"
 #endif
+#ifdef ENABLE_FSK_MODEM
+	#include "app/uart.h"
+	#include "external/printf/printf.h"
+#endif // ENABLE_FSK_MODEM
 
 #ifndef ARRAY_SIZE
 	#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -2185,3 +2189,668 @@ void BK4819_PlayDTMFEx(bool bLocalLoopback, char Code)
 	BK4819_PlayDTMF(Code);
 	BK4819_ExitTxMute();
 }
+
+
+#ifdef ENABLE_FSK_MODEM
+
+/** The BK4819 can send FSK packets with (pag.10 of 'BK4819(V3) Application Note 20210428.pdf'):
+ * 1 to 16 preamble bytes
+ * 2 or 4 sync bytes
+ * 1 to 1024 words of payload (1 word = 2 bytes)
+ * optional 2 bytes CRC
+ * [1-16 B preamble][2|4 B sync][1-1024 W payload][0|2 B CRC]
+ * 
+ ** The BK4819 has the following FIFO buffers (pag.11 of 'BK4819(V3) Application Note 20210428.pdf'):
+ * TX: 128 words
+ * RX:   8 words
+ * 
+ ** The FIFO TX and RX buffer thresholds that fire the interrupts are configurable:
+ * TX: REG_5E<9:3> // BK4819_REG_5E_MASK_FSK_TX_FIFO_THRESHOLD // default 64 words
+ * RX: REG_5E<2:0> // BK4819_REG_5E_MASK_FSK_RX_FIFO_THRESHOLD // default  4 words
+ **/
+void BK4819_FskEnterMode(
+	FSK_TX_RX_t txRx,
+	FSK_MODULATION_TYPE_t fskModulationType,
+	uint16_t fskBps,           // 0 (1200) or 1 (2400) bps
+	uint8_t fskTone2Gain,       // 0-127
+	FSK_NO_SYNC_BYTES_t fskNoSyncBytes, // 0 (2 bytes) or 1 (4 bytes)
+	uint8_t fskNoPreambleBytes, // 1-16 bytes
+	bool fskScrambleEnable,
+	bool fskCrcEnable
+	)
+{
+	// Enable Tone2 and Set Tone2 Gain
+	BK4819_WriteRegister(BK4819_REG_70, BK4819_REG_70_ENABLE_TONE2 | fskTone2Gain); // Tone2 gain: 0-127
+
+	//BK4819_WriteRegister(BK4819_REG_72, BK4819_TONE12_FSK_CONTROL_FREQ(FSK_SPEED_BPS)); // default 0x2854=10324 (10324/ / 10.32444 = 1000 Hz) [it is the bitrate of the transmission]
+	//BK4819_WriteRegister(BK4819_REG_72, (fskBps == FSK_BPS_1200) ? scale_freq(1200) :scale_freq(2400));
+	BK4819_WriteRegister(BK4819_REG_72, scale_freq(fskBps));
+
+	// FSK Enable, RX Bandwidth FFSK1200/1800, 0xAA or 0x55 Preamble, 11 RX Gain,
+	// 101 RX Mode, FFSK1200/1800 TX
+	//| BK4819_REG_58_FSK_RX_GAIN_2 
+	#define REG58_COMMON_SETTINGS ( \
+		  BK4819_REG_58_FSK_PREAMBLE_TYPE_0xAA_OR_0x55 \
+		| BK4819_REG_58_FSK_ENABLE \
+		| BK4819_REG_58_FSK_RX_GAIN_2 \
+		| BK4819_REG_58_MASK_FSK_UNKNOWN ) // in LVG github code we find '0b11'
+	
+	switch(fskModulationType) {
+		case FSK_MODULATION_TYPE_FSK1200_FSK2400 :
+			BK4819_WriteRegister(BK4819_REG_58, REG58_COMMON_SETTINGS
+				| ((txRx == FSK_RX) ? (
+						BK4819_REG_58_FSK_RX_MODE_FSK1200_FSK2400_NOAA 
+						| ((fskBps == FSK_BPS_2400) ? BK4819_REG_58_FSK_RX_BANDWIDTH_FSK2400_OR_FFSK1200_2400 : BK4819_REG_58_FSK_RX_BANDWIDTH_FSK1200)
+					) : BK4819_REG_58_FSK_TX_MODE_FSK1200_FSK2400)
+			);
+			break;
+
+		case FSK_MODULATION_TYPE_MSK1200_1800 :
+			BK4819_WriteRegister(BK4819_REG_58, REG58_COMMON_SETTINGS
+				| ((txRx == FSK_RX) ? (BK4819_REG_58_FSK_RX_MODE_FFSK1200_1800 | BK4819_REG_58_FSK_RX_BANDWIDTH_FFSK1200_1800)
+					: BK4819_REG_58_FSK_TX_MODE_FFSK1200_1800)
+			);
+			break;
+
+		case FSK_MODULATION_TYPE_MSK1200_2400 :
+			BK4819_WriteRegister(BK4819_REG_58, REG58_COMMON_SETTINGS
+				| ((txRx == FSK_RX) ? (BK4819_REG_58_FSK_RX_MODE_FFSK1200_2400 | BK4819_REG_58_FSK_RX_BANDWIDTH_FSK2400_OR_FFSK1200_2400)
+					: BK4819_REG_58_FSK_TX_MODE_FFSK1200_2400)
+			);
+			break;
+	}
+	
+	// configure the FSK packet (preamble length, sync bytes, scramble)
+	//uint16_t reg59_fsk_before = BK4819_ReadRegister(BK4819_REG_59); // TODO: maybe this is not needed
+	uint16_t reg59_fsk = (uint16_t) (
+		  fskScrambleEnable  << BK4819_REG_59_SHIFT_FSK_SCRAMBLE
+		| fskNoPreambleBytes << BK4819_REG_59_SHIFT_FSK_PREAMBLE_LENGTH
+		| fskNoSyncBytes     << BK4819_REG_59_SHIFT_FSK_SYNC_LENGTH
+	);
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO); // TODO: needs to be also written the same register with 0 in clear fifo?
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk); // in case we need to write the same data in register 59, without the "clear fifo flag"
+
+	// other FSK packet configuration (which sync bytes have to be used - default are 0x85 0xCF 0xAB 0x45)
+	// for the moment we use the default sync bytes (0x85 0xCF 0xAB 0x45) 0b1000010111001111 0b1010101101000101
+	//BK4819_WriteRegister(BK4819_REG_5A, 0x5555);   // First two sync bytes
+	//BK4819_WriteRegister(BK4819_REG_5B, 0x55AA);   // End of sync bytes. Total 4 bytes: 555555aa
+
+	// setup CRC and other mysterious stuff
+	BK4819_WriteRegister(BK4819_REG_5C, 0 | BK4819_REG_5C_MASK_FSK_UNKNOWN | (fskCrcEnable << BK4819_REG_5C_SHIFT_FSK_CRC)); // BK4819_REG_5C_MASK_FSK_OTHER defined in bk4819-regs.h contains values other than CRC that have been found around the code
+
+/*
+	// configure the TX and RX fifo interrupts thresholds, if parameters are != 0
+	if(fskTxFifoIrqThresholdWords || fskRxFifoIrqThresholdWords)
+	{
+		uint16_t reg5E_current = BK4819_ReadRegister(BK4819_REG_5E);
+
+		if(fskTxFifoIrqThresholdWords)
+			BK4819_WriteRegister(BK4819_REG_5E, (reg5E_current & ~BK4819_REG_5E_MASK_FSK_TX_FIFO_THRESHOLD) | (fskTxFifoIrqThresholdWords << BK4819_REG_5E_SHIFT_FSK_TX_FIFO_THRESHOLD));
+
+		if(fskRxFifoIrqThresholdWords)
+			BK4819_WriteRegister(BK4819_REG_5E, (reg5E_current & ~BK4819_REG_5E_MASK_FSK_RX_FIFO_THRESHOLD) | (fskRxFifoIrqThresholdWords << BK4819_REG_5E_SHIFT_FSK_RX_FIFO_THRESHOLD));
+	}
+*/
+}
+
+void BK4819_FskExitMode(void)
+{
+	BK4819_WriteRegister(BK4819_REG_70, 0x0000); //Disable Tone2
+	BK4819_WriteRegister(BK4819_REG_58, 0x0000); //Disable FSK
+}
+
+void BK4819_FskIdle(void)
+{
+	BK4819_WriteRegister(BK4819_REG_3F, (BK4819_ReadRegister(BK4819_REG_3F) & ~(
+		  BK4819_REG_3F_MASK_FSK_TX_FINISHED 
+		| BK4819_REG_3F_MASK_FSK_FIFO_ALMOST_EMPTY
+		| BK4819_REG_3F_MASK_FSK_RX_FINISHED
+		| BK4819_REG_3F_MASK_FSK_FIFO_ALMOST_FULL
+		| BK4819_REG_3F_MASK_FSK_RX_SYNC
+	))); // disable all the FSK-related interrupts
+	BK4819_WriteRegister(BK4819_REG_59, (BK4819_ReadRegister(BK4819_REG_59) & ~(
+		  BK4819_REG_59_MASK_FSK_ENABLE_TX 
+		| BK4819_REG_59_MASK_FSK_ENABLE_RX
+		| BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO
+	))); //fsk_tx_en=0, fsk_rx_en=0
+}
+
+void BK4819_FskTxBlocking(uint16_t * pFskBuffer, uint16_t lenWords)
+{
+	// ****** ENABLE FSK TX INTERRUPTS
+	BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_MASK_FSK_TX_FINISHED | BK4819_REG_3F_MASK_FSK_FIFO_ALMOST_EMPTY );
+	BK4819_WriteRegister(BK4819_REG_02, 0x0000); // in LVG github code, after every interrupt enable set, he resets the interrupts
+
+	// TODO: move the toggling of red led in the main code, before triggering the tx function
+	//BK4819_ToggleGpioOut(BK4819_GPIO1_PIN29_RED, true); // turn on the red led on the top of handheld to show that TX is ongoing
+/***************************************************************************
+	uint16_t reg59_fsk = BK4819_ReadRegister(BK4819_REG_59);
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_ENABLE_TX | BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO); // trigger the TX
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_ENABLE_TX); // clear the fifo bit
+	// TODO: maybe it is needed to write the register 59 again, without the "clear tx fifo bit"
+
+	// let's try to send up to 1024 words in the packet payload, as application note says:
+	// if the length of the sending buffer is less than the fifo buffer, than we are in the easy scenario: let's fill the buffer and wait for the TX done flag
+	// otherwise, we:
+	//  1. fill the fifo with the first 128 words
+	//  2. wait for the tx fifo empty threshold to fire (it is set to 16 words)
+	//  3. loop filling the fifo with up to 64 words and wait for either the fifo empty or the tx done
+
+#define TX_NEXT_CHUNKS 64 // the threshold is set to 16, once it triggers the interrupt, we fill the buffer with 64 words
+#define TX_FIFO_THRESHOLD 16
+
+
+	uint16_t fsk_remaining_words_to_send = lenWords;
+	uint16_t fsk_total_sent_words = 0;
+	uint8_t fsk_words_to_fill_in_fifo = 0;
+	bool first_loop = true;
+	bool last_loop = false;
+
+	while(fsk_remaining_words_to_send)
+	{
+		if(first_loop) // first loop, we have to figure out if we are sending out more words than the fifo can contain
+		{
+			first_loop = false;
+			printf("in first loop\r\n");
+
+			if(lenWords > BK4819_FSK_TX_FIFO_LEN_WORDS)
+			{
+				printf("in lenWords > BK4819_FSK_TX_FIFO_LEN_WORDS\r\n");
+				// configure the fifo threshold to 16 words
+				uint16_t reg5E_current = BK4819_ReadRegister(BK4819_REG_5E);
+				BK4819_WriteRegister(BK4819_REG_5E, (reg5E_current & ~BK4819_REG_5E_MASK_FSK_TX_FIFO_THRESHOLD) | (TX_FIFO_THRESHOLD << BK4819_REG_5E_SHIFT_FSK_TX_FIFO_THRESHOLD));
+
+				fsk_words_to_fill_in_fifo = BK4819_FSK_TX_FIFO_LEN_WORDS;
+				fsk_remaining_words_to_send = (BK4819_FSK_TX_FIFO_LEN_WORDS - fsk_remaining_words_to_send);
+			}
+			else
+			{
+				printf("in lenWords <= BK4819_FSK_TX_FIFO_LEN_WORDS\r\n");
+				fsk_words_to_fill_in_fifo = lenWords;
+				fsk_remaining_words_to_send = 0;
+				last_loop = true;
+			}
+		}
+		else
+		{
+			printf("in second else\r\n");
+			if(fsk_total_sent_words + TX_NEXT_CHUNKS > lenWords)
+				fsk_words_to_fill_in_fifo = TX_NEXT_CHUNKS;
+			else
+			{
+				fsk_words_to_fill_in_fifo = (lenWords - fsk_total_sent_words);
+				last_loop = true;
+			}
+		}
+
+		fsk_total_sent_words += fsk_words_to_fill_in_fifo;
+
+		uint16_t i;
+		for (i = 0; i < fsk_words_to_fill_in_fifo; i++)
+		{
+			BK4819_WriteRegister(BK4819_REG_5F, pFskBuffer[i]); //push data to fifo
+			//BK4819_WriteRegister(BK4819_REG_5F, 0xA010 + i); //push data to fifo
+		}
+
+		if(!last_loop) // if not last loop we need to wait for the fifo to deplate, otherwise go straight to the tx end interrupt
+		{
+			uint8_t timeout = 254; // 400 / 0.005s = 2s
+			uint16_t temp_reg_0c = 0;
+			uint16_t temp_reg_02 = 0;
+			while (timeout-- 
+				&& !((temp_reg_0c = BK4819_ReadRegister(BK4819_REG_0C)) & 0x1) 
+				&& !((temp_reg_02 = BK4819_ReadRegister(BK4819_REG_02)) & BK4819_REG_02_MASK_FSK_FIFO_ALMOST_EMPTY)) //polling int
+			{
+				SYSTEM_DelayMs(5);
+			}
+			printf("fifo 0C: 0x%x - 02: 0x%x - T: %d\r\n", temp_reg_0c, temp_reg_02, timeout);
+			BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+		}
+***************************************************************************/
+		uint16_t i;
+		for (i = 0; i < lenWords; i++)
+		{
+			BK4819_WriteRegister(BK4819_REG_5F, pFskBuffer[i]); //push data to fifo
+			//BK4819_WriteRegister(BK4819_REG_5F, 0xA010 + i); //push data to fifo
+		}
+
+		uint16_t reg59_fsk = BK4819_ReadRegister(BK4819_REG_59);
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_ENABLE_TX | BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO); // trigger the TX
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_ENABLE_TX); // clear the fifo bit
+
+		// and now finally wait for the TX done interrupt
+		uint8_t timeout = 254; // 400 / 0.005s = 2s
+		uint16_t temp_reg_0c = 0;
+		uint16_t temp_reg_02 = 0;
+		BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+		while (timeout-- )
+			//&& !((temp_reg_0c = BK4819_ReadRegister(BK4819_REG_0C)) & 0x1) 
+			//&& !((temp_reg_02 = BK4819_ReadRegister(BK4819_REG_02)) & BK4819_REG_02_MASK_FSK_TX_FINISHED)) //polling int
+		{
+			SYSTEM_DelayMs(5);
+			BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+		}
+		printf("end tx 0C: 0x%x - 02: 0x%x - T: %d\r\n", temp_reg_0c, temp_reg_02, timeout);
+		BK4819_WriteRegister(BK4819_REG_02, 0x0000);
+
+		BK4819_FskIdle();
+		
+	//} // closes the while loop, commented out at the moment
+}
+
+
+void BK4819_FskDoAllForTx(uint8_t fsk_type)
+{	
+	BK4819_SetAF(BK4819_AF_UNKNOWN7);
+	BK4819_EnableTXLink();
+	SYSTEM_DelayMs(10);
+
+	// MDC1200 uses 1200/1800 Hz FSK tone frequencies 1200 bits/s 
+	//
+	BK4819_WriteRegister(BK4819_REG_58, // 0x37C3);   // 001 101 11 11 00 001 1
+		(fsk_type << 13) |		// 1 FSK TX mode selection
+							//   0 = FSK 1.2K and FSK 2.4K TX .. no tones, direct FM
+							//   1 = FFSK 1200/1800 TX
+							//   2 = ???
+							//   3 = FFSK 1200/2400 TX
+							//   4 = ???
+							//   5 = NOAA SAME TX
+							//   6 = ???
+							//   7 = ???
+							//
+		(7u << 10) |		// 0 FSK RX mode selection
+							//   0 = FSK 1.2K, FSK 2.4K RX and NOAA SAME RX .. no tones, direct FM
+							//   1 = ???
+							//   2 = ???
+							//   3 = ???
+							//   4 = FFSK 1200/2400 RX
+							//   5 = ???
+							//   6 = ???
+							//   7 = FFSK 1200/1800 RX
+							//
+		(0u << 8) |			// 0 FSK RX gain
+							//   0 ~ 3
+							//
+		(0u << 6) |			// 0 ???
+							//   0 ~ 3
+							//
+		(0u << 4) |			// 0 FSK preamble type selection
+							//   0 = 0xAA or 0x55 due to the MSB of FSK sync byte 0
+							//   1 = ???
+							//   2 = 0x55
+							//   3 = 0xAA
+							//
+		(1u << 1) |			// 1 FSK RX bandwidth setting
+							//   0 = FSK 1.2K .. no tones, direct FM
+							//   1 = FFSK 1200/1800
+							//   2 = NOAA SAME RX
+							//   3 = ???
+							//   4 = FSK 2.4K and FFSK 1200/2400
+							//   5 = ???
+							//   6 = ???
+							//   7 = ???
+							//
+		(1u << 0));			// 1 FSK enable
+							//   0 = disable
+							//   1 = enable
+
+	// REG_72
+	//
+	// <15:0> 0x2854 TONE-2 / FSK frequency control word
+	//        = freq(Hz) * 10.32444 for XTAL 13M / 26M or
+	//        = freq(Hz) * 10.48576 for XTAL 12.8M / 19.2M / 25.6M / 38.4M
+	//
+	// tone-2 = 1200Hz
+	//
+	if(fsk_type == 2 || fsk_type == 3)
+	{
+		BK4819_WriteRegister(BK4819_REG_72, ((2400u * 103244) + 5000) / 10000);   // with rounding
+	}
+	else
+	{
+		BK4819_WriteRegister(BK4819_REG_72, ((600u * 103244) + 5000) / 10000);   // with rounding
+	}
+
+	// REG_70
+	//
+	// <15>   0 TONE-1
+	//        1 = enable
+	//        0 = disable
+	//
+	// <14:8> 0 TONE-1 gain
+	//
+	// <7>    0 TONE-2
+	//        1 = enable
+	//        0 = disable
+	//
+	// <6:0>  0 TONE-2 / FSK gain
+	//        0 ~ 127
+	//
+	// enable tone-2, set gain
+	//
+	BK4819_WriteRegister(BK4819_REG_70,   // 0 0000000 1 1100000
+		( 0u << 15) |    // 0
+		( 0u <<  8) |    // 0
+		( 1u <<  7) |    // 1
+//		(96u <<  0));    // 96
+		(127u <<  0));    // produces the best undistorted waveform, this is not gain but affects filtering
+
+	// REG_59
+	//
+	// <15>  0 TX FIFO
+	//       1 = clear
+	//
+	// <14>  0 RX FIFO
+	//       1 = clear
+	//
+	// <13>  0 FSK Scramble
+	//       1 = Enable
+	//
+	// <12>  0 FSK RX
+	//       1 = Enable
+	//
+	// <11>  0 FSK TX
+	//       1 = Enable
+	//
+	// <10>  0 FSK data when RX
+	//       1 = Invert
+	//
+	// <9>   0 FSK data when TX
+	//       1 = Invert
+	//
+	// <8>   0 ???
+	//
+	// <7:4> 0 FSK preamble length selection
+	//       0  =  1 byte
+	//       1  =  2 bytes
+	//       2  =  3 bytes
+	//       15 = 16 bytes
+	//
+	// <3>   0 FSK sync length selection
+	//       0 = 2 bytes (FSK Sync Byte 0, 1)
+	//       1 = 4 bytes (FSK Sync Byte 0, 1, 2, 3)
+	//
+	// <2:0> 0 ???
+	//
+#if 0
+	uint16_t fsk_reg59 = (0u << 15) |   // 0 ~ 1   1 = clear TX FIFO
+	            (0u << 14) |   // 0 ~ 1   1 = clear RX FIFO
+	            (0u << 13) |   // 0 ~ 1   1 = scramble
+				(0u << 12) |   // 0 ~ 1   1 = enable RX
+				(0u << 11) |   // 0 ~ 1   1 = enable TX
+				(0u << 10) |   // 0 ~ 1   1 = invert data when RX
+				(0u <<  9) |   // 0 ~ 1   1 = invert data when TX
+				(0u <<  8) |   // 0 ~ 1   ???
+				(12u << 4) |   // 0 ~ 15  preamble length
+				(0u <<  3) |   // 0 ~ 1   sync length
+				(0u <<  0);    // 0 ~ 7   ???
+
+	// Set entire packet length (not including the pre-amble and sync bytes we can't seem to disable)
+	//BK4819_WriteRegister(BK4819_REG_5D, ((ARRAY_SIZE(fskArrayU16) - 1) << 8));
+	//BK4819_WriteRegister(BK4819_REG_5D, (255 << 8));
+
+	uint16_t fskPacketDataLen = 1024;
+	BK4819_WriteRegister(BK4819_REG_5D,
+		  (((fskPacketDataLen - 1) & 0xFF) << BK4819_REG_5D_SHIFT_FSK_DATA_LENGTH_LOW)
+		| (((fskPacketDataLen - 1) >> 8)   << BK4819_REG_5D_SHIFT_FSK_DATA_LENGTH_HIGH)
+	); // take the lower 8 bits and put in the high byte of BK4819_REG_5D, then take the high bits (actually, 3 at most) and put them in the low bye :-)
+
+
+	BK4819_WriteRegister(BK4819_REG_59, (1u << 15) | fsk_reg59);   // clear TX fifo by setting the FIFO reset bit
+	BK4819_WriteRegister(BK4819_REG_59, (0u << 15) | fsk_reg59);   // release the reset bit
+
+	// REG_5A
+	//
+	// <15:8> 0x55 FSK Sync Byte 0 (Sync Byte 0 first, then 1,2,3)
+	// <7:0>  0x55 FSK Sync Byte 1
+	//
+	//BK4819_WriteRegister(BK4819_REG_5A, 0x0000);                   // bytes 1 & 2
+
+	// REG_5B
+	//
+	// <15:8> 0x55 FSK Sync Byte 2 (Sync Byte 0 first, then 1,2,3)
+	// <7:0>  0xAA FSK Sync Byte 3
+	//
+	//BK4819_WriteRegister(BK4819_REG_5B, 0x0000);                   // bytes 2 & 3 (not used)
+
+	// CRC setting (plus other stuff we don't know what)
+	//
+	// REG_5C
+	//
+	// <15:7> ???
+	//
+	// <6>    1 CRC option enable
+	//        0 = disable
+	//        1 = enable
+	//
+	// <5:0>  ???
+	//
+	// disable CRC
+	//
+//	BK4819_WriteRegister(BK4819_REG_5C, 0xAA30);   // 101010100 0 110000
+	BK4819_WriteRegister(BK4819_REG_5C, 0);        // setting to '0' doesn't make any difference !
+
+	// enable TX
+	BK4819_WriteRegister(BK4819_REG_59, (1u << 11) | fsk_reg59);
+
+	#define SRAM_MEMORY_START 0x20000000
+	#define SRAM_MEMORY_TO_READ 1024
+	#define MMIO16(addr) (*(volatile uint16_t *)(addr))
+
+	// enable TX interrupt
+	BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED | BK4819_REG_3F_FSK_FIFO_ALMOST_EMPTY); // unfortunately the BK4819_REG_02_FSK_FIFO_ALMOST_FULL is not triggered in TX
+
+
+	{	// load the entire packet data into the TX FIFO buffer
+		unsigned int i;
+		uint16_t sram = 0;
+
+		//for (i = 0; i < (ARRAY_SIZE(fskArrayU16) * 3); i++)
+		//	BK4819_WriteRegister(BK4819_REG_5F, fskArrayU16[(i % ARRAY_SIZE(fskArrayU16))]);  // load 16-bits at a time
+
+		for (i = 0; i < SRAM_MEMORY_TO_READ; i=i+2)
+		{
+			sram = MMIO16(SRAM_MEMORY_START + i);
+			BK4819_WriteRegister(BK4819_REG_5F, sram);
+			//printf("0x%x : 0x%x \r\n", (SRAM_MEMORY_START + i), sram);
+
+			if (BK4819_ReadRegister(BK4819_REG_0C) & (1u << 0))
+			{	// we have interrupt flags
+				BK4819_WriteRegister(BK4819_REG_02, 0);
+				uint16_t reg02_irq = BK4819_ReadRegister(BK4819_REG_02);
+				printf("reg02_irq 0x%x\r\n", reg02_irq);
+
+				if (reg02_irq & BK4819_REG_02_FSK_TX_FINISHED)
+				{
+					printf("i %d \t interrupt BK4819_REG_02_FSK_TX_FINISHED\r\n", i);
+				}
+				if (reg02_irq & BK4819_REG_02_FSK_FIFO_ALMOST_EMPTY)
+				{
+					printf("i %d \t interrupt BK4819_REG_02_FSK_FIFO_ALMOST_EMPTY\r\n", i);
+				}
+			}
+		}
+	}
+
+	// enable tx interrupt
+	//BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED | BK4819_REG_3F_FSK_FIFO_ALMOST_EMPTY | BK4819_REG_3F_FSK_FIFO_ALMOST_FULL);
+
+	{	// packet time is ..
+		// 173ms for PTT ID, acks, emergency
+		// 266ms for call alert and sel-calls
+
+		// allow up to 350ms for the TX to complete
+		// if it takes any longer then somethings gone wrong, we shut the TX down
+		unsigned int timeout = 3000;   
+		uint16_t reg02_irq = 0;   
+
+		while (timeout-- > 0)
+		{
+			SYSTEM_DelayMs(5);
+			if (BK4819_ReadRegister(BK4819_REG_0C) & (1u << 0))
+			{	// we have interrupt flags
+				BK4819_WriteRegister(BK4819_REG_02, 0);
+				reg02_irq = BK4819_ReadRegister(BK4819_REG_02);
+				printf("reg02_irq 0x%x\r\n", reg02_irq);
+
+				if (reg02_irq & BK4819_REG_02_FSK_TX_FINISHED)
+				{
+					printf("timeout %d \t interrupt BK4819_REG_02_FSK_TX_FINISHED\r\n", timeout);
+					timeout = 0;       // TX is complete
+				}
+				if (reg02_irq & BK4819_REG_02_FSK_FIFO_ALMOST_EMPTY)
+				{
+					printf("timeout %d \t interrupt BK4819_REG_02_FSK_FIFO_ALMOST_EMPTY\r\n", timeout);
+					//timeout = 0;       // TX is complete
+				}
+				if (reg02_irq & BK4819_REG_02_FSK_FIFO_ALMOST_FULL)
+				{
+					printf("timeout %d \t interrupt BK4819_REG_02_FSK_FIFO_ALMOST_FULL\r\n", timeout);
+					//timeout = 0;       // TX is complete
+				}
+			}
+		}
+	}
+	
+	// disable TX
+	BK4819_WriteRegister(BK4819_REG_59, fsk_reg59);
+
+	BK4819_WriteRegister(BK4819_REG_3F, 0);   // disable interrupts
+	BK4819_WriteRegister(BK4819_REG_70, 0);
+	BK4819_WriteRegister(BK4819_REG_58, 0);
+
+#endif // 0 for halving the function
+}
+
+
+bool BK4819_FskCheckInterrupt(FSK_IRQ_t irq)
+{
+	uint16_t reg0c_irq = BK4819_ReadRegister(BK4819_REG_0C);
+	printf("reg0c_irq 0x%x\r\n", reg0c_irq);
+
+	if (reg0c_irq & (1u << 0))
+	{	// we have interrupt flags
+		BK4819_WriteRegister(BK4819_REG_02, 0);
+		uint16_t reg02_irq = BK4819_ReadRegister(BK4819_REG_02);
+		printf("reg02_irq 0x%x\r\n", reg02_irq);
+
+		if (reg02_irq & BK4819_REG_02_FSK_TX_FINISHED)
+		{
+			printf("interrupt BK4819_REG_02_FSK_TX_FINISHED\r\n");
+			if(irq == FSK_TX_FINISHED)
+				return true;
+		}
+
+		if (reg02_irq & BK4819_REG_02_FSK_FIFO_ALMOST_EMPTY)
+		{
+			printf("interrupt BK4819_REG_02_FSK_FIFO_ALMOST_EMPTY\r\n");
+			if(irq == FSK_FIFO_ALMOST_EMPTY)
+				return true;
+		}
+
+		if (reg02_irq & BK4819_REG_02_FSK_RX_FINISHED)
+		{
+			printf("interrupt BK4819_REG_02_FSK_RX_FINISHED\r\n");
+			if(irq == FSK_RX_FINISHED)
+				return true;
+		}
+
+		if (reg02_irq & BK4819_REG_02_FSK_FIFO_ALMOST_FULL)
+		{
+			printf("interrupt BK4819_REG_02_FSK_FIFO_ALMOST_FULL\r\n");
+			if(irq == FSK_FIFO_ALMOST_FULL)
+				return true;
+		}
+
+		if (reg02_irq & BK4819_REG_02_FSK_RX_SYNC)
+		{
+			printf("interrupt BK4819_REG_02_FSK_RX_SYNC\r\n");
+			if(irq == FSK_FIFO_ALMOST_FULL)
+				return true;
+		}
+
+	}
+
+	return false;
+}
+
+int16_t BK4819_FskTransmitPacket(void * txBuffer, uint16_t packetLenBytes)
+{
+	#define BK4819_FIFO_DIM_WORDS 		128 // 256 bytes
+	#define BK4819_MAX_PACKET_LEN_WORDS 1024 // 2048 bytes
+	#define TX_FIFO_LOW_THRESHOLD_WORDS 64 // 64 bytes --- default is 128 bytes (64 words)
+	#define TX_FIFO_CHUNKS_DIM_WORDS 	64
+
+	if(packetLenBytes > (BK4819_MAX_PACKET_LEN_WORDS * 2))
+	{
+		return -1;
+	}
+
+	//uint16_t local_buffer_U16[(packetLenBytes / 2)];
+	//uint16_t local_packet_len_words = packetLenBytes / 2;
+
+	//memcpy(local_buffer_U16, (uint16_t *)txBuffer, local_packet_len_words);
+
+	// set up custom tx fifo low threshold
+	uint16_t reg5E_fifo = BK4819_ReadRegister(BK4819_REG_5E);
+	BK4819_WriteRegister(BK4819_REG_5E, (reg5E_fifo & ~BK4819_REG_5E_MASK_FSK_TX_FIFO_THRESHOLD) | (TX_FIFO_LOW_THRESHOLD_WORDS << BK4819_REG_5E_SHIFT_FSK_TX_FIFO_THRESHOLD));
+
+	// enable TX interrupt
+	BK4819_WriteRegister(BK4819_REG_3F, BK4819_REG_3F_FSK_TX_FINISHED | BK4819_REG_3F_FSK_FIFO_ALMOST_EMPTY); // unfortunately the BK4819_REG_02_FSK_FIFO_ALMOST_FULL is not triggered in TX
+
+	// clear tx fifo and enable tx
+	uint16_t reg59_fsk = BK4819_ReadRegister(BK4819_REG_59);
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO); // TODO: needs to be also written the same register with 0 in clear fifo?
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_ENABLE_TX); // in case we need to write the same data in register 59, without the "clear fifo flag"
+
+	uint16_t i;
+	const uint16_t *p = (const uint16_t *)txBuffer;
+
+	//uint8_t n_of_refills = 0;
+	//for(i = 0; i < local_packet_len_words; i++)
+	for (i = 0; i < (packetLenBytes / sizeof(p[0])); i++)
+	{
+		/* it doesn't fire the fifo low interrupt
+		if(i == (BK4819_FIFO_DIM_WORDS + n_of_refills * TX_FIFO_CHUNKS_DIM_WORDS))
+		{
+			printf("wait for fifo, i: %d\r\n", i);
+			// stop and wait for the fifo to be depleted
+			uint16_t timeout = 100 / 2;
+			while(timeout--)
+			{
+				SYSTEM_DelayMs(2);
+				if(BK4819_FskCheckInterrupt(FSK_FIFO_ALMOST_EMPTY))
+					timeout = 0;
+			}
+
+			n_of_refills++;
+			printf("refills: %d\r\n", n_of_refills);
+		}
+		*/
+		BK4819_WriteRegister(BK4819_REG_5F, p[i]);  // load 16-bits at a time
+		//printf(" 0x%04x", p[i]);
+		//if(!(i % 10))
+		//	printf("\r\n");
+
+		SYSTICK_DelayUs(10);
+	}
+
+	// wait for end of tx
+	unsigned int timeout = 3000 / 2; // filling delay of 5ms between the loops
+
+	while (timeout--)
+	{
+		SYSTEM_DelayMs(2);
+		if(BK4819_FskCheckInterrupt(FSK_TX_FINISHED))
+			timeout = 0;
+	}
+
+	// clear fifo and stop tx
+	//BK4819_WriteRegister(BK4819_REG_59, reg59_fsk | BK4819_REG_59_MASK_FSK_CLEAR_TX_FIFO);
+	BK4819_WriteRegister(BK4819_REG_59, reg59_fsk);
+
+	return i;
+}
+
+
+#endif // ENABLE_FSK_MODEM
