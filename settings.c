@@ -344,6 +344,10 @@ void SETTINGS_save(void)
 
 	memset(State, 0xFF, sizeof(State));
 	State[0] = g_eeprom.scan_hold_time_500ms;
+
+	#ifdef ENABLE_OOK_REMOTE      
+		State[7] = (State[7] & ~(7u << 3)) | (g_setting_ook_remote << 3);
+	#endif
 	EEPROM_WriteBuffer8(0x0F48, State);
 }
 

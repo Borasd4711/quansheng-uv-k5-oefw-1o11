@@ -136,6 +136,9 @@ const t_menu_item g_menu_list[] =
 	{"Side2L", VOICE_ID_INVALID,                       MENU_SIDE2_LONG            },
 #endif
 	{"VER",    VOICE_ID_INVALID,                       MENU_VERSION               },
+#ifdef ENABLE_OOK_REMOTE
+	{"OOK RC", VOICE_ID_INVALID,                       MENU_OOK_REMOTE			  },
+#endif
 	{"RESET",  VOICE_ID_INITIALISATION,                MENU_RESET                 }, // might be better to move this to the hidden menu items ?
 
 	// ************************************
@@ -1139,6 +1142,15 @@ void UI_DisplayMenu(void)
 				sprintf(str, "%u.%02uV\n(%#4d)\n%#4d", vol / 100, vol % 100, g_battery_calibration[3], g_sub_menu_selection);
 			break;
 		}
+
+#ifdef ENABLE_OOK_REMOTE // Francesco
+		case MENU_OOK_REMOTE:
+			if(g_sub_menu_selection == 0)
+				strcpy(str, "OFF");
+			else
+				sprintf(str, "- %d -", g_sub_menu_selection);
+			break;
+#endif // ENABLE_OOK_REMOTE			
 	}
 
 	#pragma GCC diagnostic pop

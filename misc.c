@@ -268,6 +268,11 @@ volatile uint16_t     g_boot_counter_10ms = 4000 / 10;   // 4 seconds
 
 int16_t               g_current_rssi[2] = {0, 0};  // now one per VFO
 
+#ifdef ENABLE_OOK_REMOTE
+	uint8_t           g_setting_ook_remote = 0;
+	uint8_t           g_setting_ook_remote_last = 0;
+#endif
+
 unsigned int get_RX_VFO(void)
 {
 	unsigned int rx_vfo = g_eeprom.tx_vfo;

@@ -761,6 +761,11 @@ void BOARD_EEPROM_load(void)
 		g_eeprom.screen_channel[1] = g_eeprom.user_channel[1];
 	}
 
+	#ifdef ENABLE_OOK_REMOTE
+		// using bit6 of last byte of Data array to have room for two bits (4 values .. OFF, FSK 1800, FSK 2400, MSK 2400)
+		g_setting_ook_remote       = (Data[7] & (7u << 3)) >> 3; // 0b 01 111 000 -> 0b 111
+	#endif
+
 	// 0D60..0E27
 	EEPROM_ReadBuffer(0x0D60, g_user_channel_attributes, sizeof(g_user_channel_attributes));
 

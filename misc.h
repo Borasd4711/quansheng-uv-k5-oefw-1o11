@@ -347,6 +347,11 @@ extern volatile bool         g_flag_tail_tone_elimination_complete;
 extern int16_t               g_current_rssi[2];   // now one per VFO
 extern volatile uint16_t     g_boot_counter_10ms;
 
+#ifdef ENABLE_OOK_REMOTE // Francesco
+	extern uint8_t           g_setting_ook_remote;
+	extern uint8_t           g_setting_ook_remote_last;
+#endif
+
 unsigned int get_TX_VFO(void);
 unsigned int get_RX_VFO(void);
 void         NUMBER_Get(char *pDigits, uint32_t *pInteger);

@@ -130,6 +130,9 @@ enum
 #endif
 	MENU_VERSION,
 	MENU_RESET,
+#ifdef ENABLE_OOK_REMOTE
+	MENU_OOK_REMOTE,
+#endif
 
 	// ************************************
 	// ************************************

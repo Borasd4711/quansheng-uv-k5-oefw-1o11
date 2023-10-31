@@ -63,6 +63,9 @@
 #include "ui/menu.h"
 #include "ui/status.h"
 #include "ui/ui.h"
+#ifdef ENABLE_OOK_REMOTE
+#include "driver/ook.h"
+#endif // ENABLE_OOK_REMOTE
 
 // original QS front end register settings
 const uint8_t orig_lna_short = 3;   //   0dB
@@ -2072,6 +2075,79 @@ void APP_cancel_user_input_modes(void)
 void APP_time_slice_500ms(void)
 {
 	bool exit_menu = false;
+
+#ifdef ENABLE_OOK_REMOTE
+
+	if(g_setting_ook_remote < 6 && g_setting_ook_remote != 0 && g_setting_ook_remote != g_setting_ook_remote_last) // send OOK sequence only once
+	{
+		OOK_t rc433_array[5] = {
+			{
+				.sequence_len = 37,
+				.sync_pulse_us = 50, //200,
+				.pulse_0_us = 300,
+				.pulse_1_us = 100,
+				.period_us = 400
+			},
+			{
+				.sequence_len = 37,
+				.sync_pulse_us = 50, //200,
+				.pulse_0_us = 300,
+				.pulse_1_us = 100,
+				.period_us = 400
+			},
+			{
+				.sequence_len = 37,
+				.sync_pulse_us = 50, //200,
+				.pulse_0_us = 300,
+				.pulse_1_us = 100,
+				.period_us = 400
+			},
+			{
+				.sequence_len = 37,
+				.sync_pulse_us = 50, //200,
+				.pulse_0_us = 300,
+				.pulse_1_us = 100,
+				.period_us = 400
+			},
+			{
+				.sequence_len = 37,
+				.sync_pulse_us = 50, //200,
+				.pulse_0_us = 300,
+				.pulse_1_us = 100,
+				.period_us = 400
+			}
+		};
+
+		uint8_t barraSeq[] = {0x00, 0x67, 0x43, 0x79, 0xF8};   // {0b00000000, 0b01100111, 0b01000011, 0b01111001, 0b11111000}
+		rc433_array[0].sequence_ptr = barraSeq;
+
+		uint8_t primaSxSeq[] = {0x00, 0xA6, 0x23, 0x79, 0xF8}; // {0b00000000, 0b10100110, 0b00100011, 0b01111001, 0b11111000}
+		rc433_array[1].sequence_ptr = primaSxSeq;
+
+		uint8_t primaDxSeq[] = {0x00, 0x47, 0x23, 0x79, 0xF8}; // {0b00000000, 0b10001011, 0b00100011, 0b01111001, 0b11111000}
+		rc433_array[2].sequence_ptr = primaDxSeq;
+
+		uint8_t fondoSxSeq[] = {0x00, 0xCC, 0x23, 0x79, 0xF8}; // {0b00000000, 0b11001100, 0b00100011, 0b01111001, 0b11111000}
+		rc433_array[3].sequence_ptr = fondoSxSeq;		
+						
+		uint8_t fondoDxSeq[] = {0x00, 0x8B, 0x23, 0x79, 0xF8}; // {0b00000000, 0b01000111, 0b00100011, 0b01111001, 0b11111000}
+		rc433_array[4].sequence_ptr = fondoDxSeq;
+
+		{
+			uint8_t i;
+			for(i = 0; i < 10; i++)
+			{
+			    OOK_BeginTx();
+			    OOK_TxSequence(&rc433_array[g_setting_ook_remote - 1]);
+			    OOK_EndTx();
+			    SYSTEM_DelayMs(50);
+			}
+		}
+	}
+		
+	g_setting_ook_remote_last = g_setting_ook_remote; // save in any case the last used
+
+#endif // ENABLE_OOK_REMOTE
 
 	// Skipped authentic device check
 

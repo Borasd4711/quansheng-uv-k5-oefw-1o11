@@ -142,6 +142,7 @@ void     RADIO_setup_registers(bool switch_to_function_foreground);
 	void RADIO_ConfigureNOAA(void);
 #endif
 void     RADIO_enableTX(const bool fsk_tx);
+void 	 RADIO_disableTX(const bool fsk_tx);
 
 void     RADIO_Setg_vfo_state(vfo_state_t State);
 void     RADIO_PrepareTX(void);

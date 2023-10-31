@@ -14,8 +14,8 @@ ENABLE_LTO                       := 1
 ENABLE_UART                      := 1
 ENABLE_UART_DEBUG                := 0
 # AirCopy 2.5 kB
-ENABLE_AIRCOPY                   := 1
-ENABLE_AIRCOPY_REMEMBER_FREQ     := 1
+ENABLE_AIRCOPY                   := 0
+ENABLE_AIRCOPY_REMEMBER_FREQ     := 0
 ENABLE_AIRCOPY_RX_REBOOT         := 0
 # FM Radio 4.2 kB
 ENABLE_FMRADIO_76_90             := 0
@@ -36,8 +36,8 @@ ENABLE_TX1750                    := 0
 ENABLE_MDC1200                   := 1
 ENABLE_PWRON_PASSWORD            := 0
 ENABLE_RESET_AES_KEY             := 1
-ENABLE_BIG_FREQ                  := 0
-ENABLE_SMALL_BOLD                := 0
+ENABLE_BIG_FREQ                  := 1
+ENABLE_SMALL_BOLD                := 1
 ENABLE_TRIM_TRAILING_ZEROS       := 1
 ENABLE_KEEP_MEM_NAME             := 1
 ENABLE_WIDE_RX                   := 1
@@ -46,7 +46,7 @@ ENABLE_F_CAL_MENU                := 0
 ENABLE_TX_UNLOCK                 := 0
 ENABLE_CTCSS_TAIL_PHASE_SHIFT    := 0
 ENABLE_CONTRAST                  := 0
-ENABLE_BOOT_BEEPS                := 0
+ENABLE_BOOT_BEEPS                := 1
 ENABLE_DTMF_CALL_FLASH_LIGHT     := 1
 ENABLE_SHOW_CHARGE_LEVEL         := 0
 ENABLE_REVERSE_BAT_SYMBOL        := 1
@@ -73,6 +73,7 @@ ENABLE_SIDE_BUTT_MENU            := 1
 ENABLE_KEYLOCK                   := 1
 #ENABLE_PANADAPTER               := 0
 #ENABLE_SINGLE_VFO_CHAN          := 0
+ENABLE_OOK_REMOTE                := 1
 
 #############################################################
 
@@ -156,6 +157,9 @@ OBJS += driver/system.o
 OBJS += driver/systick.o
 ifeq ($(ENABLE_UART),1)
 	OBJS += driver/uart.o
+endif
+ifeq ($(ENABLE_OOK_REMOTE),1)
+	OBJS += driver/ook.o
 endif
 
 # Main
@@ -438,6 +442,9 @@ endif
 ifeq ($(ENABLE_PANADAPTER),1)
 	CFLAGS += -DENABLE_PANADAPTER
 endif
+ifeq ($(ENABLE_OOK_REMOTE),1)
+	CFLAGS  += -DENABLE_OOK_REMOTE
+endif
 
 LDFLAGS =
 ifeq ($(ENABLE_CLANG),0)
@@ -492,6 +499,9 @@ debug:
 
 flash:
 	/opt/openocd/bin/openocd -c "bindto 0.0.0.0" -f interface/jlink.cfg -f dp32g030.cfg -c "write_image firmware.bin 0; shutdown;"
+
+prog:
+	k5prog -F -YYY -b firmware.bin
 
 version.o: .FORCE
 
