@@ -346,7 +346,7 @@ void SETTINGS_save(void)
 	State[0] = g_eeprom.scan_hold_time_500ms;
 
 	#ifdef ENABLE_OOK_REMOTE      
-		State[7] = (State[7] & ~(7u << 3)) | (g_setting_ook_remote << 3);
+		//State[7] = (State[7] & ~(7u << 3)) | (g_setting_ook_remote << 3); // do not save the code
 	#endif
 	EEPROM_WriteBuffer8(0x0F48, State);
 }

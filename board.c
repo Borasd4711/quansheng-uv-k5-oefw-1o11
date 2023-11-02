@@ -762,8 +762,8 @@ void BOARD_EEPROM_load(void)
 	}
 
 	#ifdef ENABLE_OOK_REMOTE
-		// using bit6 of last byte of Data array to have room for two bits (4 values .. OFF, FSK 1800, FSK 2400, MSK 2400)
-		g_setting_ook_remote       = (Data[7] & (7u << 3)) >> 3; // 0b 01 111 000 -> 0b 111
+		//g_setting_ook_remote       = (Data[7] & (7u << 3)) >> 3; // 0b 01 111 000 -> 0b 111
+		g_setting_ook_remote 		 = 0; // always reset to OFF to avoid unwanted TX on boot
 	#endif
 
 	// 0D60..0E27
