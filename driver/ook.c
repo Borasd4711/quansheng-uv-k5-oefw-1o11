@@ -23,6 +23,13 @@
 #include "radio.h"
 #include "driver/ook.h"
 
+#include "driver/uart.h"
+#include "external/printf/printf.h"
+
+#define OOK_TX_FREQUENCY (433920000 / 10) // standard EU frequency for ISM
+#define OOK_TX_BIAS      10 // low power
+uint32_t vfo_frequency_to_restore = 0;
+
 void OOK_CustomDelayUs(uint16_t d)
 {
     SYSTICK_DelayUs( d + (uint16_t)(d/13)*(uint16_t)(d/13) );
@@ -31,21 +38,20 @@ void OOK_CustomDelayUs(uint16_t d)
 
 void OOK_BeginTx(void)
 {
+    vfo_frequency_to_restore = g_current_vfo->p_tx->frequency; // save the current vfo freq to be restored later (because RADIO_enableTX() uses this value to setup all tx stuff)
+    g_current_vfo->p_tx->frequency = OOK_TX_FREQUENCY;         // override the current vfo in order to avoid to TX on unwanted bands
+
 	RADIO_enableTX(false);
-    //BK4819_SetupPowerAmplifier(g_current_vfo->txp_calculated_setting, g_current_vfo->p_tx->frequency);
-    BK4819_SetupPowerAmplifier(10, 43392000); // use fixed (low) power and fixed standard EU frequency for ISM
-    BK4819_set_GPIO_pin(BK4819_GPIO1_PIN29_PA_ENABLE, true);  // PA on
-    BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, true);         // turn the RED LED on
-    GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+    BK4819_SetupPowerAmplifier(OOK_TX_BIAS, g_current_vfo->p_tx->frequency);
+    GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);          // turn the FLASHLIGHT on just for fancy
 }
 
 void OOK_EndTx(void)
 {
     RADIO_disableTX(false);
-    BK4819_SetupPowerAmplifier(0, 0);
-    BK4819_set_GPIO_pin(BK4819_GPIO1_PIN29_PA_ENABLE, false);  // PA off
-    BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, false);         // turn the RED LED off
-    GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);
+    GPIO_ClearBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);         // turn the FLASHLIGHT off, fancy over
+
+    g_current_vfo->p_tx->frequency = vfo_frequency_to_restore;            // restore the correct vfo frequency
 }
 
 void OOK_HardwareTxOn(void)
