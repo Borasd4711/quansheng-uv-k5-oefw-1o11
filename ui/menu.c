@@ -1143,7 +1143,7 @@ void UI_DisplayMenu(void)
 			break;
 		}
 
-#ifdef ENABLE_OOK_REMOTE // Francesco
+#ifdef ENABLE_OOK_REMOTE
 		case MENU_OOK_REMOTE:
 			if(g_sub_menu_selection == 0)
 				strcpy(str, "OFF");

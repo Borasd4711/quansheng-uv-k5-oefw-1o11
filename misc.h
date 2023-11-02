@@ -347,7 +347,7 @@ extern volatile bool         g_flag_tail_tone_elimination_complete;
 extern int16_t               g_current_rssi[2];   // now one per VFO
 extern volatile uint16_t     g_boot_counter_10ms;
 
-#ifdef ENABLE_OOK_REMOTE // Francesco
+#ifdef ENABLE_OOK_REMOTE
 	extern uint8_t           g_setting_ook_remote;
 	extern uint8_t           g_setting_ook_remote_last;
 #endif

@@ -885,7 +885,7 @@ void MENU_AcceptSetting(void)
 			break;
 		}
 
-		#ifdef ENABLE_OOK_REMOTE // Francesco
+		#ifdef ENABLE_OOK_REMOTE
 			case MENU_OOK_REMOTE:
 				g_setting_ook_remote = g_sub_menu_selection;
 				break;
@@ -1326,7 +1326,7 @@ void MENU_ShowCurrentSetting(void)
 			g_sub_menu_selection = g_battery_calibration[3];
 			break;
 
-#ifdef ENABLE_OOK_REMOTE // Francesco
+#ifdef ENABLE_OOK_REMOTE
 		case MENU_OOK_REMOTE:
 			g_sub_menu_selection = g_setting_ook_remote;
 			break;
