@@ -1,3 +1,18 @@
+/* Copyright 2023 Motorello
+ * https://github.com/motorello
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
 #include <string.h>   // NULL and memset
 
@@ -7,7 +22,6 @@
 #include "driver/systick.h"
 #include "radio.h"
 #include "driver/ook.h"
-//#include <math.h>
 
 void OOK_CustomDelayUs(uint16_t d)
 {
@@ -18,7 +32,8 @@ void OOK_CustomDelayUs(uint16_t d)
 void OOK_BeginTx(void)
 {
 	RADIO_enableTX(false);
-    BK4819_SetupPowerAmplifier(g_current_vfo->txp_calculated_setting, g_current_vfo->p_tx->frequency);
+    //BK4819_SetupPowerAmplifier(g_current_vfo->txp_calculated_setting, g_current_vfo->p_tx->frequency);
+    BK4819_SetupPowerAmplifier(10, 43392000); // use fixed (low) power and fixed standard EU frequency for ISM
     BK4819_set_GPIO_pin(BK4819_GPIO1_PIN29_PA_ENABLE, true);  // PA on
     BK4819_set_GPIO_pin(BK4819_GPIO5_PIN1_RED, true);         // turn the RED LED on
     GPIO_SetBit(&GPIOC->DATA, GPIOC_PIN_FLASHLIGHT);

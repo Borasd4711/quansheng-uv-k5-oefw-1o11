@@ -38,7 +38,7 @@ ENABLE_PWRON_PASSWORD            := 0
 ENABLE_RESET_AES_KEY             := 1
 ENABLE_BIG_FREQ                  := 1
 ENABLE_SMALL_BOLD                := 1
-ENABLE_TRIM_TRAILING_ZEROS       := 1
+ENABLE_TRIM_TRAILING_ZEROS       := 0
 ENABLE_KEEP_MEM_NAME             := 1
 ENABLE_WIDE_RX                   := 1
 ENABLE_TX_WHEN_AM                := 0
@@ -66,7 +66,7 @@ ENABLE_RX_SIGNAL_BAR             := 1
 # Tx Timeout Bar 0.2 kB
 ENABLE_TX_TIMEOUT_BAR            := 0
 # Tx Audio Bar 0.3 kB
-ENABLE_TX_AUDIO_BAR              := 0
+ENABLE_TX_AUDIO_BAR              := 1
 # Side Button Menu 0.3 kB
 ENABLE_SIDE_BUTT_MENU            := 1
 # Key Lock 0.4 kB
