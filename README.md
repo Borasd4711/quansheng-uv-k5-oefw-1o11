@@ -12,7 +12,33 @@ There is absolutely no guarantee that it will work in any way shape or form on y
 even brick your radio(s), at which point, maybe find a quiet corner to sob your hert out in.
 
 NO REFUNDS, ever !
- 
+
+## Note on OOK development branch
+
+NOT FOR GENERAL CONSUMPTION, DONT ASK FOR BINARIES
+
+This is an early and deeply experimental code to just try to switch the PA on and off. It can be done with any 8 bit MCUs (I've tried with PIC, STC, ST8, MSP430) with better results, as the timing with MCUs is more precise. In order to switch the power amplifier on and on, K5 needs to write it on a register of BK radio chip, which introduces latency and jitter...
+Of course, we are not dealing with rolling-codes, but just dumb fixed codes of legacy door openers.
+
+The sequences stored in my remotes feature an initial pulse, then encode symbols "silence first". In my use cases, the period (sum of silence + pulse) is constant.
+I consider a "mark" (or 1) a long pulse (and thus a short silence) and a "space" (or 0) a short pulse (and long silence), but this convention is just a personal choise, but it has to be consistent throughout the code.
+I guess there are tons of different ways to encode sequences of bits (let's call them "protocols"). This code for sure is not meant to cover all the cases.
+
+The data structure that I figured out to store the OOK parameters is defined in driver/ook.h:
+
+```
+typedef struct OOK_s {
+    uint8_t *sequence_ptr; 
+    uint8_t  sequence_len;  // number of symbols in sequence
+    uint16_t sync_pulse_us; // tx duration at beginning of transmission (us)
+    uint16_t pulse_0_us;    // tx duration for mark (us)
+    uint16_t pulse_1_us;    // tx duration for space (us)
+    uint16_t period_us;     // time between two symbols (us)
+} __attribute__((packed)) OOK_t;
+```
+
+*sequence_ptr* is a pointer to a byte array, which contains the sequence. For example, if the sequence is 12 symbols long, then the array is two bytes and the last 4 bits of the second byte are ignored.
+
 ## Radio performance
 
 Please note that the Quansheng UV-Kx radios are not professional quality transceivers, their
