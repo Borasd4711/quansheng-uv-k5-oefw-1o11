@@ -21,7 +21,7 @@ This is an early and deeply experimental code to just try to switch the PA on an
 Of course, we are not dealing with rolling-codes, but just dumb fixed codes of legacy door openers.
 
 The sequences stored in my remotes feature an initial pulse, then encode symbols "silence first". In my use cases, the period (sum of silence + pulse) is constant.
-I consider a "mark" (or 1) a long pulse (and thus a short silence) and a "space" (or 0) a short pulse (and long silence), but this convention is just a personal choise, but it has to be consistent throughout the code.
+I consider a "space" (or 0) a long pulse (and thus a short silence) and a "mark" (or 1) a short pulse (and long silence), but this convention is just a personal choise, but it has to be consistent throughout the code.
 I guess there are tons of different ways to encode sequences of bits (let's call them "protocols"). This code for sure is not meant to cover all the cases.
 
 The data structure that I figured out to store the OOK parameters is defined in driver/ook.h:
