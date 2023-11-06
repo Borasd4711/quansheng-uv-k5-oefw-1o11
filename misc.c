@@ -269,7 +269,8 @@ volatile uint16_t     g_boot_counter_10ms = 4000 / 10;   // 4 seconds
 int16_t               g_current_rssi[2] = {0, 0};  // now one per VFO
 
 #ifdef ENABLE_FSK_MODEM
-	bool          g_setting_fsk_modem;
+	uint8_t       g_setting_fsk_modem_mode;
+	uint8_t       g_setting_fsk_modem_txrx;
 	uint16_t      g_fsk_modem_countdown_500ms;
 #endif
 

@@ -762,8 +762,10 @@ void BOARD_EEPROM_load(void)
 	}
 
 	#ifdef ENABLE_FSK_MODEM
-		// using bit6 of last byte of Data array to have room for two bits (4 values .. OFF, FSK 1800, FSK 2400, MSK 2400)
-		g_setting_fsk_modem       = (Data[7] & (1u << 6)) ? true : false;
+		// g_setting_fsk_modem_mode: FSK 1800, FSK 2400, MSK 1200, MSK 2400 (FSK_MODULATION_TYPE_t)
+		g_setting_fsk_modem_mode  = (Data[7] & (7u << 6)) >> 6; // 0b 11 xx xxxx  -> 0b 11
+		// g_setting_fsk_modem_txrx: OFF, TX, RX
+		g_setting_fsk_modem_txrx  = (Data[7] & (7u << 1)) >> 1; // 0b xxxx x 11 x -> 0b 11
 	#endif
 
 	// 0D60..0E27

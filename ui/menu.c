@@ -138,7 +138,8 @@ const t_menu_item g_menu_list[] =
 	{"VER",    VOICE_ID_INVALID,                       MENU_VERSION               },
 	{"RESET",  VOICE_ID_INITIALISATION,                MENU_RESET                 }, // might be better to move this to the hidden menu items ?
 #ifdef ENABLE_FSK_MODEM
-	{"MODEM",  VOICE_ID_INVALID,                       MENU_FSK_MODEM  			  },
+	{"MODEM",  VOICE_ID_INVALID,                       MENU_FSK_MODEM_TXRX		  },
+	{"FSK M?", VOICE_ID_INVALID,                       MENU_FSK_MODEM_MODE		  },
 #endif
 	// ************************************
 	// ************************************
@@ -1142,9 +1143,42 @@ void UI_DisplayMenu(void)
 			break;
 		}
 
-#ifdef ENABLE_FSK_MODEM // Francesco
-			case MENU_FSK_MODEM:
-				strcpy(str, (g_sub_menu_selection == 0) ? "OFF" : "FSK");
+#ifdef ENABLE_FSK_MODEM
+			case MENU_FSK_MODEM_TXRX:
+				switch(g_sub_menu_selection)
+				{
+					case FSK_OFF:
+						strcpy(str, "OFF");
+						break;
+
+					case FSK_TX:
+						strcpy(str, "TX");
+						break;
+
+					case FSK_RX:
+						strcpy(str, "RX");
+						break;
+				}
+				break;
+
+			case MENU_FSK_MODEM_MODE:
+				switch(g_sub_menu_selection)
+				{
+					case FSK_MODULATION_TYPE_FSK1K2:
+						strcpy(str, "FSK1K2");
+						break;
+
+					case FSK_MODULATION_TYPE_FSK2K4:
+						strcpy(str, "FSK2K4");
+						break;
+
+					case FSK_MODULATION_TYPE_MSK1200_1800:
+						strcpy(str, "MSK1800");
+						break;
+					case FSK_MODULATION_TYPE_MSK1200_2400:
+						strcpy(str, "MSK2400");
+						break;
+				}
 				break;
 #endif // ENABLE_FSK_MODEM
 	}

@@ -367,9 +367,13 @@ int MENU_GetLimits(uint8_t Cursor, int32_t *pMin, int32_t *pMax)
 			break;
 
 		#ifdef ENABLE_FSK_MODEM
-			case MENU_FSK_MODEM:
+			case MENU_FSK_MODEM_TXRX: // g_setting_fsk_modem_txrx: OFF, TX, RX
 				*pMin = 0;
-				*pMax = 1;
+				*pMax = 2;
+				break;
+			case MENU_FSK_MODEM_MODE: // g_setting_fsk_modem_mode: FSK 1800, FSK 2400, MSK 1200, MSK 2400
+				*pMin = 0;
+				*pMax = 3;
 				break;
 		#endif
 
@@ -886,8 +890,12 @@ void MENU_AcceptSetting(void)
 		}
 
 		#ifdef ENABLE_FSK_MODEM // Francesco
-			case MENU_FSK_MODEM:
-				g_setting_fsk_modem = g_sub_menu_selection;
+			case MENU_FSK_MODEM_TXRX:
+				g_setting_fsk_modem_txrx = g_sub_menu_selection;
+				break;
+
+			case MENU_FSK_MODEM_MODE:
+				g_setting_fsk_modem_mode = g_sub_menu_selection;
 				break;
 		#endif
 	}
@@ -1326,11 +1334,15 @@ void MENU_ShowCurrentSetting(void)
 			g_sub_menu_selection = g_battery_calibration[3];
 			break;
 
-		#ifdef ENABLE_FSK_MODEM // Francesco
-			case MENU_FSK_MODEM:
-				g_sub_menu_selection = g_setting_fsk_modem;
-				break;
-		#endif	
+#ifdef ENABLE_FSK_MODEM // Francesco
+		case MENU_FSK_MODEM_TXRX:
+			g_sub_menu_selection = g_setting_fsk_modem_txrx;
+			break;
+
+		case MENU_FSK_MODEM_MODE:
+			g_sub_menu_selection = g_setting_fsk_modem_mode;
+			break;
+#endif	
 
 		default:
 			return;

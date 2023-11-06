@@ -348,7 +348,8 @@ extern int16_t               g_current_rssi[2];   // now one per VFO
 extern volatile uint16_t     g_boot_counter_10ms;
 
 #ifdef ENABLE_FSK_MODEM // Francesco
-	extern bool              g_setting_fsk_modem;
+	extern uint8_t           g_setting_fsk_modem_mode;
+	extern uint8_t           g_setting_fsk_modem_txrx;
 	extern uint16_t          g_fsk_modem_countdown_500ms;
 #endif
 

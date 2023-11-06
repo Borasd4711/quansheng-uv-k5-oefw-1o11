@@ -346,7 +346,10 @@ void SETTINGS_save(void)
 	State[0] = g_eeprom.scan_hold_time_500ms;
 
 	#ifdef ENABLE_FSK_MODEM
-		if (!g_setting_fsk_modem)         State[7] &= ~(1u << 6);
+		// g_setting_fsk_modem_mode: FSK 1800, FSK 2400, MSK 1200, MSK 2400 (FSK_MODULATION_TYPE_t)
+		State[7] = (State[7] & ~(7u << 6)) | (g_setting_fsk_modem_mode << 6); // 0b 11 xx xxxx  -> 0b 11
+		// g_setting_fsk_modem_txrx: OFF, TX, RX
+		State[7] = (State[7] & ~(7u << 1)) | (g_setting_fsk_modem_txrx << 1); // 0b 11 xx xxxx  -> 0b 11
 	#endif
 	EEPROM_WriteBuffer8(0x0F48, State);
 }

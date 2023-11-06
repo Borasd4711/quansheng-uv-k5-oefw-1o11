@@ -170,13 +170,6 @@ void     BK4819_PlayDTMFEx(bool bLocalLoopback, char Code);
 #define BK4819_FSK_TX_FIFO_LEN_WORDS 128
 #define BK4819_FSK_RX_FIFO_LEN_WORDS 8
 
-enum FSK_BPS_t {
-	FSK_BPS_1200 = 0,
-	FSK_BPS_2400 = 1,
-};
-
-typedef enum FSK_BPS_t FSK_BPS_t;
-
 enum FSK_NO_SYNC_BYTES_t {
 	FSK_NO_SYNC_BYTES_2 = 0,
 	FSK_NO_SYNC_BYTES_4 = 1,
@@ -185,16 +178,18 @@ enum FSK_NO_SYNC_BYTES_t {
 typedef enum FSK_NO_SYNC_BYTES_t FSK_NO_SYNC_BYTES_t;
 
 enum FSK_MODULATION_TYPE_t {
-	FSK_MODULATION_TYPE_FSK1200_FSK2400 = 0,
-	FSK_MODULATION_TYPE_MSK1200_1800 = 1,
-	FSK_MODULATION_TYPE_MSK1200_2400 = 2,
+	FSK_MODULATION_TYPE_FSK1K2 = 0,	  // AFSK 1200 bps
+	FSK_MODULATION_TYPE_FSK2K4,       // AFSK 2400 bps
+	FSK_MODULATION_TYPE_MSK1200_1800, // MSK 1200 bps (aka FFSK)
+	FSK_MODULATION_TYPE_MSK1200_2400, // MSK 2400 bps (aka FFSK)
 };
 
 typedef enum FSK_MODULATION_TYPE_t FSK_MODULATION_TYPE_t;
 
 enum FSK_TX_RX_t {
-	FSK_RX = 0,
-	FSK_TX = 1,
+	FSK_OFF = 0,
+	FSK_TX,
+	FSK_RX,
 };
 
 typedef enum FSK_TX_RX_t FSK_TX_RX_t;
@@ -205,6 +200,7 @@ enum FSK_IRQ_t {
 	FSK_RX_FINISHED = 2,
 	FSK_FIFO_ALMOST_FULL = 3,
 	FSK_RX_SYNC = 4,
+	FSK_OTHER = 9,
 };
 
 typedef enum FSK_IRQ_t FSK_IRQ_t;
@@ -212,21 +208,19 @@ typedef enum FSK_IRQ_t FSK_IRQ_t;
 void BK4819_FskEnterMode(
 	FSK_TX_RX_t txRx,
 	FSK_MODULATION_TYPE_t fskModulationType,
-	uint16_t fskBps,           // 0 (1200) or 1 (2400) bps
 	uint8_t fskTone2Gain,       // 0-127
 	FSK_NO_SYNC_BYTES_t fskNoSyncBytes, // 0 (2 bytes) or 1 (4 bytes)
 	uint8_t fskNoPreambleBytes, // 1-16 bytes
 	bool fskScrambleEnable,
-	bool fskCrcEnable
+	bool fskCrcEnable,
+	bool fskInvertData
 	);
+
+FSK_IRQ_t BK4819_FskCheckInterrupt(void);
+int16_t BK4819_FskTransmitPacket(void * txBuffer, uint16_t packetLenBytes);
 
 void BK4819_FskExitMode(void);
 void BK4819_FskIdle(void);
-void BK4819_FskTxBlocking(uint16_t * pFskBuffer, uint16_t lenWords);
-void BK4819_FskDoAllForTx(uint8_t fsk_type);
-
-bool BK4819_FskCheckInterrupt(FSK_IRQ_t irq);
-int16_t BK4819_FskTransmitPacket(void * txBuffer, uint16_t packetLenBytes);
 
 #endif // ENABLE_FSK_MODEM
 
