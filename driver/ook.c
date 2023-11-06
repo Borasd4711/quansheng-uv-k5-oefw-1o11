@@ -75,7 +75,7 @@ void OOK_EncodeSymbol(OOK_t * ook_struct, bool symbol)
     if (symbol)
     {
         OOK_HardwareTxOff();
-        OOK_CustomDelayUs(ook_struct->period_us - ook_struct->pulse_0_us);
+        OOK_CustomDelayUs(ook_struct->period_us - ook_struct->pulse_1_us);
         OOK_HardwareTxOn();
         OOK_CustomDelayUs(ook_struct->pulse_1_us);
     }
