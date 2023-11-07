@@ -43,6 +43,9 @@
 #include "ui/menu.h"
 #include "ui/menu.h"
 #include "ui/ui.h"
+#ifdef ENABLE_OOK_REMOTE
+#include "driver/ook.h"
+#endif // ENABLE_OOK_REMOTE
 
 #ifndef ARRAY_SIZE
 	#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -369,7 +372,7 @@ int MENU_GetLimits(uint8_t Cursor, int32_t *pMin, int32_t *pMax)
 		#ifdef ENABLE_OOK_REMOTE
 			case MENU_OOK_REMOTE:
 				*pMin = 0;
-				*pMax = 5;
+				*pMax = OOK_NUMBER_OF_CODES; // defined in ook.h
 				break;
 		#endif
 

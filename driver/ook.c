@@ -23,6 +23,7 @@
 
 #define OOK_TX_FREQUENCY (433920000 / 10) // standard EU frequency for ISM
 #define OOK_TX_BIAS      10 // low power
+
 uint32_t vfo_frequency_to_restore = 0;
 BK4819_filter_bandwidth_t bandwidth_to_restore = 0;
 uint8_t txp_to_restore = 0;

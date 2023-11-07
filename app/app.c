@@ -2078,43 +2078,57 @@ void APP_time_slice_500ms(void)
 
 #ifdef ENABLE_OOK_REMOTE
 
-	if(g_setting_ook_remote < 6 && g_setting_ook_remote != 0 && g_setting_ook_remote != g_setting_ook_remote_last) // send OOK sequence only once
+	if(g_setting_ook_remote <= OOK_NUMBER_OF_CODES && g_setting_ook_remote != 0 && g_setting_ook_remote != g_setting_ook_remote_last) // send OOK sequence only once
 	{
-		OOK_t rc433_array[5] = {
-			{
+		OOK_t rc433_array[OOK_NUMBER_OF_CODES] = {
+			{	// 0
 				.sequence_len = 37,
-				.sync_pulse_us = 50, //200,
+				.sync_pulse_us = 50,
 				.pulse_0_us = 300,
 				.pulse_1_us = 100,
 				.period_us = 400
 			},
-			{
+			{	// 1
 				.sequence_len = 37,
-				.sync_pulse_us = 50, //200,
+				.sync_pulse_us = 50,
 				.pulse_0_us = 300,
 				.pulse_1_us = 100,
 				.period_us = 400
 			},
-			{
+			{	// 2
 				.sequence_len = 37,
-				.sync_pulse_us = 50, //200,
+				.sync_pulse_us = 50,
 				.pulse_0_us = 300,
 				.pulse_1_us = 100,
 				.period_us = 400
 			},
-			{
+			{	// 3
 				.sequence_len = 37,
-				.sync_pulse_us = 50, //200,
+				.sync_pulse_us = 50,
 				.pulse_0_us = 300,
 				.pulse_1_us = 100,
 				.period_us = 400
 			},
-			{
+			{	// 4
 				.sequence_len = 37,
-				.sync_pulse_us = 50, //200,
+				.sync_pulse_us = 50,
 				.pulse_0_us = 300,
 				.pulse_1_us = 100,
 				.period_us = 400
+			},
+			{	// 5
+				.sequence_len = 20,
+				.sync_pulse_us = 150,
+				.pulse_0_us = 310,
+				.pulse_1_us = 150,
+				.period_us = 470
+			},
+			{	// 6
+				.sequence_len = 20,
+				.sync_pulse_us = 150,
+				.pulse_0_us = 310,
+				.pulse_1_us = 150,
+				.period_us = 470
 			}
 		};
 
@@ -2132,6 +2146,12 @@ void APP_time_slice_500ms(void)
 						
 		uint8_t fondoDxSeq[] = {0x00, 0x8B, 0x23, 0x79, 0xF8}; // {0b00000000, 0b01000111, 0b00100011, 0b01111001, 0b11111000}
 		rc433_array[4].sequence_ptr = fondoDxSeq;
+
+		uint8_t presaRcCh1On[]  = {0x73, 0x81, 0x10}; // {0b01110011, 0b10000001, 0b00010000}
+		rc433_array[5].sequence_ptr = presaRcCh1On;
+
+		uint8_t presaRcCh1Off[] = {0x73, 0x80, 0x00}; // {0b01110011, 0b10000000, 0b00000000}
+		rc433_array[6].sequence_ptr = presaRcCh1Off;
 
 		{
 			uint8_t i;

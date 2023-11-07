@@ -17,6 +17,8 @@
 #ifndef DRIVER_OOK_H
 #define DRIVER_OOK_H
 
+#define OOK_NUMBER_OF_CODES 7 // 5 garages + 2 sockets
+
 typedef struct OOK_s {
 	uint8_t *sequence_ptr; 
 	uint8_t  sequence_len;	// number of symbols in sequence
